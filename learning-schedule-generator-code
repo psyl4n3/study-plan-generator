@@ -1,0 +1,97 @@
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('Generate Study Schedule')
+    .addItem('Generate', 'generateLearningSchedule')
+    .addToUi();
+}
+
+function generateLearningSchedule() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss");
+  const sheetName = 'Schedule_' + timestamp;
+  let timestampSheet = ss.getSheetByName(sheetName);
+
+  if (!timestampSheet) {
+    timestampSheet = ss.insertSheet(sheetName);
+  } else {
+    timestampSheet.clear(); // Clear existing content
+  }
+
+  const lastColumn = timestampSheet.getLastColumn();
+  if (lastColumn > 4) timestampSheet.deleteColumns(5, lastColumn - 4);
+
+  const lastRow = timestampSheet.getLastRow();
+  if (lastRow > 1) timestampSheet.deleteRows(2, lastRow - 1);
+
+  // Prompt for the start date
+  const startDateResponse = Browser.inputBox('Enter Start Date', 'Please enter the start date in MM/DD/YYYY format:', Browser.Buttons.OK_CANCEL);
+
+  if (startDateResponse == 'cancel') {
+    // User canceled the action
+    return;
+  }
+
+  const startDate = new Date(startDateResponse);
+
+  // Check for invalid date
+  if (isNaN(startDate.getTime())) {
+    Browser.msgBox('Invalid Date', 'The date entered is not valid. Please use the MM/DD/YYYY format.', Browser.Buttons.OK);
+    return;
+  }
+
+  // Prompt for the number of chapters
+  const chaptersResponse = Browser.inputBox('Number of Chapters', 'How many chapters does the book have?', Browser.Buttons.OK_CANCEL);
+
+  if (chaptersResponse == 'cancel') {
+    // User canceled the action
+    return;
+  }
+
+  const chapters = parseInt(chaptersResponse);
+
+  // Check for invalid number of chapters
+  if (isNaN(chapters) || chapters < 1) {
+    Browser.msgBox('Invalid Number', 'The number of chapters entered is not valid. Please enter a positive number.', Browser.Buttons.OK);
+    return;
+  }
+
+  // Header
+  timestampSheet.appendRow(['Chapter', 'Learn/Review', 'Date', 'Notes']);
+
+  for (let chapter = 1; chapter <= chapters; chapter++) {
+    const learnDate = new Date(startDate.getTime() + (chapter - 1) * 2 * 24 * 60 * 60 * 1000); // Every 2 days
+    appendRow(timestampSheet, `Chapter ${chapter}`, 'Learn', learnDate, '1st repetition');
+
+    const secondRepDate = new Date(learnDate.getTime() + (20 / 1440) * 24 * 60 * 60 * 1000); // 20 minutes later
+    appendRow(timestampSheet, `Chapter ${chapter}`, 'Review', secondRepDate, '2nd repetition');
+
+    const thirdRepDate = new Date(learnDate.getTime() + 1 * 24 * 60 * 60 * 1000); // 1 day later
+    appendRow(timestampSheet, `Chapter ${chapter}`, 'Review', thirdRepDate, '3rd repetition after 1 day');
+
+    const fourthRepDate = new Date(learnDate.getTime() + 14 * 24 * 60 * 60 * 1000); // 2 weeks later
+    appendRow(timestampSheet, `Chapter ${chapter}`, 'Review', fourthRepDate, '4th repetition after 2-3 weeks');
+
+    const fifthRepDate = new Date(learnDate.getTime() + 60 * 24 * 60 * 60 * 1000); // ~2 months later
+    appendRow(timestampSheet, `Chapter ${chapter}`, 'Review', fifthRepDate, '5th repetition after 2-3 months');
+  }
+
+  // Apply filters to each column
+  const range = timestampSheet.getRange(1, 1, timestampSheet.getLastRow(), timestampSheet.getLastColumn());
+  const filter = range.createFilter();
+
+  // Sort data by column C in A-Z fashion
+  filter.sort(3, true);
+
+  // Auto-resize columns
+  timestampSheet.autoResizeColumns(1, timestampSheet.getLastColumn());
+}
+
+// Helper function to append rows
+function appendRow(sheet, chapter, action, date, notes) {
+  sheet.appendRow([chapter, action, formatDate(date), notes]);
+}
+
+// Helper function to format dates as MM/DD/YYYY
+function formatDate(date) {
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), "MM/dd/yyyy");
+}
